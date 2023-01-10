@@ -11,7 +11,19 @@ class Vector:
 
     @classmethod
     def Zero(cls) -> Vector:
-        return cls(0., 0., 0.)
+        return cls(0, 0, 0)
+
+    @classmethod
+    def TransX(cls, x: Symbol) -> Vector:
+        return cls(x, 0, 0)
+
+    @classmethod
+    def TransY(cls, y: Symbol) -> Vector:
+        return cls(0, y, 0)
+
+    @classmethod
+    def TransZ(cls, z: Symbol) -> Vector:
+        return cls(0, 0, z)
 
     def x(self) -> Symbol:
         return self.data[0]
@@ -34,9 +46,9 @@ class Vector:
         """ ベクトルの外積に相当する行列を返す． """
         x, y, z = self.data
         return Matrix([
-            [0., -z, y],
-            [z, 0., -x],
-            [-y, x, 0.],
+            [0, -z, y],
+            [z, 0, -x],
+            [-y, x, 0],
         ])
 
     def __add__(self, rhs: Vector) -> Vector:
@@ -76,30 +88,30 @@ class Rotation:
         ])
 
     @classmethod
+    def Identity(cls) -> Rotation:
+        return cls(1, 0, 0, 0, 1, 0, 0, 0, 1)
+
+    @classmethod
     def RotX(cls, roll: Symbol) -> Rotation:
         cs = sympy.cos(roll)
         sn = sympy.sin(roll)
-        return cls(1., 0., 0., 0., cs, -sn, 0., sn, cs)
+        return cls(1, 0, 0, 0, cs, -sn, 0, sn, cs)
 
     @classmethod
     def RotY(cls, pitch: Symbol) -> Rotation:
         cs = sympy.cos(pitch)
         sn = sympy.sin(pitch)
-        return cls(cs, 0., sn, 0., 1., 0., -sn, 0., cs)
+        return cls(cs, 0, sn, 0, 1, 0, -sn, 0, cs)
 
     @classmethod
     def RotZ(cls, yaw: Symbol) -> Rotation:
         cs = sympy.cos(yaw)
         sn = sympy.sin(yaw)
-        return cls(cs, -sn, 0., sn, cs, 0., 0., 0., 1.)
+        return cls(cs, -sn, 0, sn, cs, 0, 0, 0, 1)
 
     @classmethod
     def RPY(cls, roll: Symbol, pitch: Symbol, yaw: Symbol) -> Rotation:
-        return cls.RotZ(yaw) @ cls.RotY(pitch) @ cls.RotX(roll)
-
-    @classmethod
-    def Identity(cls) -> Rotation:
-        return cls(1., 0., 0., 0., 1., 0., 0., 0., 1.)
+        return cls.RotZ(yaw) * cls.RotY(pitch) * cls.RotX(roll)
 
     @classmethod
     def Rodrigues(cls, axis: Vector, angle: Symbol) -> Rotation:
@@ -123,7 +135,7 @@ class Rotation:
         cross = axis.normalize().cross_mat()
         I = sympy.Identity(3)
 
-        data = I + sn * cross + (1. - cs) * (cross @ cross)
+        data = I + sn * cross + (1 - cs) * (cross @ cross)
         return cls(*data.flat())
 
     def inverse(self) -> Rotation:
@@ -159,6 +171,38 @@ class Frame:
         return cls(Vector.Zero(), Rotation.Identity())
 
     @classmethod
+    def Trans(cls, p: Vector) -> None:
+        return cls(p, Rotation.Identity())
+
+    @classmethod
+    def Rot(cls, M: Rotation) -> None:
+        return cls(Vector.Zero(), M)
+
+    @classmethod
+    def TransX(cls, x: Symbol) -> Frame:
+        return cls.Trans(Vector.TransX(x))
+
+    @classmethod
+    def TransY(cls, y: Symbol) -> Frame:
+        return cls.Trans(Vector.TransY(y))
+
+    @classmethod
+    def TransZ(cls, z: Symbol) -> Frame:
+        return cls.Trans(Vector.TransZ(z))
+
+    @classmethod
+    def RotX(cls, roll: Symbol) -> Frame:
+        return cls.Rot(Rotation.RotX(roll))
+
+    @classmethod
+    def RotY(cls, pitch: Symbol) -> Frame:
+        return cls.Rot(Rotation.RotY(pitch))
+
+    @classmethod
+    def RotZ(cls, yaw: Symbol) -> Frame:
+        return cls.Rot(Rotation.RotZ(yaw))
+
+    @classmethod
     def DH(cls, alpha: Symbol, a: Symbol, theta: Symbol, d: Symbol,) -> Frame:
         """
         DenavitHartenbergパラメータによる座標変換．
@@ -187,7 +231,7 @@ class Frame:
         # ロボティクス(3.6)
         p = Matrix([a, -sn_alpha * d, cs_alpha * d])
         M = Matrix([
-            [cs_theta, -sn_theta, 0.],
+            [cs_theta, -sn_theta, 0],
             [sn_theta * cs_alpha, cs_theta * cs_alpha, -sn_alpha],
             [sn_theta * sn_alpha, cs_theta * sn_alpha, cs_alpha],
         ])
@@ -200,13 +244,13 @@ class Frame:
 
     @singledispatchmethod
     def __mul__(self, rhs: Frame) -> Frame:
-        p = self.M @ rhs.p + self.p
-        M = self.M @ rhs.M
+        p = self.M * rhs.p + self.p
+        M = self.M * rhs.M
         return Frame(p=p, M=M)
 
     @__mul__.register
     def _(self, rhs: Vector) -> Vector:
-        return self.M @ rhs + self.p
+        return self.M * rhs + self.p
 
     def __repr__(self) -> str:
         res = ''

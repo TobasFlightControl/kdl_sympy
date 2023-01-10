@@ -70,7 +70,7 @@ class Vector:
         return Vector(x, y, z)
 
     def __repr__(self) -> str:
-        return self.data.__repr__()
+        return f'x: {self.x()}, y: {self.y()}, z: {self.z()}'
 
 
 class Rotation:
@@ -153,7 +153,12 @@ class Rotation:
         return Vector(*data)
 
     def __repr__(self) -> str:
-        return self.data.__repr__()
+        res = ''
+        for r in range(3):
+            for c in range(3):
+                res += f'{self.data[r, c]}\t'
+            res += '\n'
+        return res
 
 
 class Frame:
@@ -253,12 +258,4 @@ class Frame:
         return self.M * rhs + self.p
 
     def __repr__(self) -> str:
-        res = ''
-
-        res += 'p:\n'
-        res += self.p.__repr__()
-
-        res += 'M:\n'
-        res += self.M.__repr__()
-
-        return res
+        return f'p:\n{self.p.__repr__()}\n' + f'M:\n{self.M.__repr__()}\n'

@@ -1,15 +1,9 @@
-from setuptools import setup, find_packages
+from distutils.core import setup
+from catkin_pkg.python_setup import generate_distutils_setup
 
-install_requires = [
-    'numpy',
-    'sympy',
-]
-
-setup(
-    name='kdl_sympy',
-    version='0.0.0',
-    author='dohi',
-    packages=find_packages(where='src'),
-    package_dir={'': 'src'},
-    install_requires=install_requires,
+setup_args = generate_distutils_setup(
+	packages=["kdl_sympy"],
+	package_dir={"": "src"},
 )
+
+setup(**setup_args)

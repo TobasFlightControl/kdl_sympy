@@ -1,5 +1,6 @@
 from __future__ import annotations  # 自クラスを返り値としてアノテートするために必要
 from functools import singledispatchmethod
+import numpy as np
 import sympy
 from sympy import Symbol, Matrix
 
@@ -133,7 +134,7 @@ class Rotation:
         sn = sympy.sin(angle)
         cs = sympy.cos(angle)
         cross = axis.normalize().cross_mat()
-        I = sympy.Identity(3)
+        I = np.identity(3)  # sympy.Identity(3)だと続く行列和がMatAddのまま評価されなかった
 
         data = I + sn * cross + (1 - cs) * (cross @ cross)
         return cls(*data.flat())

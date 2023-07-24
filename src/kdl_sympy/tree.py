@@ -48,6 +48,9 @@ class Tree:
         return self._robot.link_map[link_name]
 
     def get_joint(self, link_name: str) -> Joint:
+        if link_name == self._robot.get_root():
+            raise ValueError("Root link does not have a joint.")
+
         joint_name, _ = self._robot.parent_map[link_name]
         return self._robot.joint_map[joint_name]
 
@@ -86,6 +89,11 @@ class Tree:
         """ 全てのリンクの名前を返す． """
         links = self.get_links()
         return [link.name for link in links]
+
+    def joint_names(self) -> List[str]:
+        """ 全てのジョイントの名前を変えす． """
+        joints = self.get_joints()
+        return [joint.name for joint in joints]
 
     def local_pose(self, link_name: str) -> Frame:
         """ 親リンクに対する位置姿勢を求める． """

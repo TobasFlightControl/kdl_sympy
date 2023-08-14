@@ -69,6 +69,16 @@ class Tree:
         assert link_name in self._robot.link_map.keys()
         return link_name not in self._robot.child_map.keys()
 
+    def is_fixed_link(self, link_name: str) -> bool:
+        """ リンクがルートに固定されている場合にTrueを返す． """
+        assert link_name in self._robot.link_map.keys()
+
+        if link_name == self._robot.get_root():
+            return True
+
+        _, parent_name = self._robot.parent_map[link_name]
+        return self.is_fixed_link(parent_name)
+
     def is_fixed_joint(self, joint_name: str) -> bool:
         joint: Joint = self._robot.joint_map[joint_name]
         return joint.type == JointType.FIXED

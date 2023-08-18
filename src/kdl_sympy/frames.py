@@ -3,12 +3,17 @@ from functools import singledispatchmethod
 import numpy as np
 import sympy
 from sympy import Symbol, Matrix
+from sympy.logic.boolalg import BooleanTrue
+from typing import Dict
 
 
 class Vector:
 
     def __init__(self, x: Symbol, y: Symbol, z: Symbol) -> None:
-        self.data = Matrix([x, y, z])
+        # 3成分をまとめてMatrixで保持するよりも別々にSymbolで保持したほうが使い勝手が良い
+        self.x = x
+        self.y = y
+        self.z = z
 
     @classmethod
     def Zero(cls) -> Vector:
@@ -26,52 +31,106 @@ class Vector:
     def TransZ(cls, z: Symbol) -> Vector:
         return cls(0, 0, z)
 
-    def x(self) -> Symbol:
-        return self.data[0]
+    @classmethod
+    def UnitX(cls) -> Vector:
+        return cls(1, 0, 0)
 
-    def y(self) -> Symbol:
-        return self.data[1]
+    @classmethod
+    def UnitY(cls) -> Vector:
+        return cls(0, 1, 0)
 
-    def z(self) -> Symbol:
-        return self.data[2]
+    @classmethod
+    def UnitZ(cls) -> Vector:
+        return cls(0, 0, 1)
 
-    def norm(self, ord: int = 2) -> Symbol:
+    def norm(self) -> Symbol:
         """ ノルムを返す． """
-        return self.data.norm(ord=ord)
+        return sympy.sqrt(self.x**2 + self.y**2 + self.z**2)
 
     def normalize(self) -> Vector:
         """ 正規化する． """
-        return self / self.norm(2)
+        return self / self.norm()
 
     def cross_mat(self) -> Matrix:
         """ ベクトルの外積に相当する行列を返す． """
-        x, y, z = self.data
         return Matrix([
-            [0, -z, y],
-            [z, 0, -x],
-            [-y, x, 0],
+            [0, -self.z, self.y],
+            [self.z, 0, -self.x],
+            [-self.y, self.x, 0],
         ])
 
+    def dot(self, other: Vector) -> Symbol:
+        """ 2つのベクトルの内積を計算する． """
+        return self.x * other.x + self.y * other.y + self.z * other.z
+
+    def argument(self, other: Vector) -> Symbol:
+        """ 2つのベクトル間の偏角を計算する． """
+        v1 = self.normalize()
+        v2 = other.normalize()
+        return sympy.acos(v1.dot(v2))
+
+    def is_collinear(self, other: Vector, tol: float = 1e-6) -> bool:
+        """ 他方と常に平行 (同方向) となる場合にTrueを返す． """
+        # 偏角を計算
+        angle = self.argument(other)
+
+        # 偏角ががSymbolなどfloatに変換できない場合は評価不能なのでFalseを返す
+        try:
+            angle = float(angle)
+        except Exception as e:
+            print(f'Failed to evaluate the argument of 2 vectors: {e}')
+            return False
+
+        return angle < tol
+
+    def is_collinear_legacy(self, other: Vector, same_direction_only: bool = False) -> True:
+        """ 他方と常に平行となる場合にTrueを返す．この手法だと許容範囲 (tolerance) が設定できない． """
+        # 比例係数を定義
+        k = sympy.symbols("k")
+
+        # 2つのベクトルが平行となるための条件
+        # 0の積除算で条件が消えることを防ぐためにkが左辺にある場合と右辺にある場合の両方を条件に加える
+        eq_x1 = sympy.Eq(other.x, self.x * k)
+        eq_y1 = sympy.Eq(other.y, self.y * k)
+        eq_z1 = sympy.Eq(other.z, self.z * k)
+        eq_x2 = sympy.Eq(other.x / k, self.x)
+        eq_y2 = sympy.Eq(other.y / k, self.y)
+        eq_z2 = sympy.Eq(other.z / k, self.z)
+
+        # 比例係数についてのみ方程式を解く
+        sol: Dict[Symbol, Symbol] = sympy.solve(
+            (eq_x1, eq_y1, eq_z1, eq_x2, eq_y2, eq_z2), (k), dict=False)
+
+        if len(sol) == 0:
+            # 解がなければFalse
+            return False
+        elif len(sol) == 1:
+            # 常に比例係数が正のときのみTrueを返す
+            return isinstance(sol[k] > 0, BooleanTrue) if same_direction_only else True
+        else:
+            # 解が複数ある場合は例外を出す
+            raise RuntimeError("Equation has multiple solutions.")
+
     def __add__(self, rhs: Vector) -> Vector:
-        x = self.x() + rhs.x()
-        y = self.y() + rhs.y()
-        z = self.z() + rhs.z()
+        x = self.x + rhs.x
+        y = self.y + rhs.y
+        z = self.z + rhs.z
         return Vector(x, y, z)
 
     def __sub__(self, rhs: Vector) -> Vector:
-        x = self.x() - rhs.x()
-        y = self.y() - rhs.y()
-        z = self.z() - rhs.z()
+        x = self.x - rhs.x
+        y = self.y - rhs.y
+        z = self.z - rhs.z
         return Vector(x, y, z)
 
     def __truediv__(self, rhs: Symbol) -> Vector:
-        x = self.x() / rhs
-        y = self.y() / rhs
-        z = self.z() / rhs
+        x = self.x / rhs
+        y = self.y / rhs
+        z = self.z / rhs
         return Vector(x, y, z)
 
     def __repr__(self) -> str:
-        return f'x: {self.x()}, y: {self.y()}, z: {self.z()}'
+        return f'x: {self.x}, y: {self.y}, z: {self.z}'
 
 
 class Rotation:
@@ -136,21 +195,21 @@ class Rotation:
         cross = axis.normalize().cross_mat()
         I = np.identity(3)  # sympy.Identity(3)だと続く行列和がMatAddのまま評価されなかった
 
-        data = I + sn * cross + (1 - cs) * (cross @ cross)
+        data: Matrix = I + sn * cross + (1 - cs) * (cross @ cross)
         return cls(*data.flat())
 
     def inverse(self) -> Rotation:
-        data = self.data.T
+        data: Matrix = self.data.T
         return Rotation(*data.flat())
 
     @singledispatchmethod
     def __mul__(self, rhs: Rotation) -> Rotation:
-        data = self.data @ rhs.data
+        data: Matrix = self.data @ rhs.data
         return Rotation(*data.flat())
 
     @__mul__.register
     def _(self, rhs: Vector) -> Vector:
-        data = self.data @ rhs.data
+        data: Matrix = self.data @ Matrix([rhs.x, rhs.y, rhs.z])
         return Vector(*data)
 
     def __repr__(self) -> str:

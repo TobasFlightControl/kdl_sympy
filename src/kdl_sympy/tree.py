@@ -8,7 +8,6 @@ from .joint import JointType
 
 
 class Tree:
-
     def __init__(self) -> None:
         self._robot = Robot()
         self._q_map: Dict[str, Union[Symbol, int]] = {}
@@ -20,18 +19,18 @@ class Tree:
             if joint.type == JointType.FIXED:
                 self._q_map[joint.name] = 0
             elif joint.type in {JointType.REVOLUTE, JointType.CONTINUOUS}:
-                self._q_map[joint.name] = sympy.symbols(fr'\theta_{i}')
+                self._q_map[joint.name] = sympy.symbols(rf"\theta_{i}")
             elif joint.type == JointType.PRISMATIC:
-                self._q_map[joint.name] = sympy.symbols(fr'd_{i}')
+                self._q_map[joint.name] = sympy.symbols(rf"d_{i}")
             else:
-                raise RuntimeError(f'Invalid joint type: {joint.type}')
+                raise RuntimeError(f"Invalid joint type: {joint.type}")
 
     def get_num_joints(self) -> int:
-        """ 固定関節を含む全関節の個数． """
+        """固定関節を含む全関節の個数．"""
         return len(self._robot.joints)
 
     def get_num_links(self) -> int:
-        """ リンクの個数． """
+        """リンクの個数．"""
         return len(self._robot.links)
 
     def get_links(self) -> List[Link]:
@@ -70,7 +69,7 @@ class Tree:
         return link_name not in self._robot.child_map.keys()
 
     def is_fixed_link(self, link_name: str) -> bool:
-        """ リンクがルートに固定されている場合にTrueを返す． """
+        """リンクがルートに固定されている場合にTrueを返す．"""
         assert link_name in self._robot.link_map.keys()
 
         if link_name == self._robot.get_root():
@@ -96,17 +95,17 @@ class Tree:
         return False
 
     def link_names(self) -> List[str]:
-        """ 全てのリンクの名前を返す． """
+        """全てのリンクの名前を返す．"""
         links = self.get_links()
         return [link.name for link in links]
 
     def joint_names(self) -> List[str]:
-        """ 全てのジョイントの名前を変えす． """
+        """全てのジョイントの名前を変えす．"""
         joints = self.get_joints()
         return [joint.name for joint in joints]
 
     def local_pose(self, link_name: str) -> Frame:
-        """ 親リンクに対する位置姿勢を求める． """
+        """親リンクに対する位置姿勢を求める．"""
         if link_name == self._robot.get_root():
             return Frame.Identity()  # FIXME: Identityじゃないパターンがあるかも
 
@@ -120,7 +119,7 @@ class Tree:
         return T_parent_joint * T_joint_link
 
     def global_pose(self, link_name: str) -> Frame:
-        """ Forward Kinematics. """
+        """Forward Kinematics."""
         return self._recursive_fk(link_name)
 
     def local_axis(self, joint_name: str) -> Union[Vector, None]:
@@ -150,7 +149,7 @@ class Tree:
         return self._recursive_fk(parent.name) * cur_frame
 
     def _parent_to_joint(self, joint_name: str) -> Frame:
-        """ 親フレーム -> ジョイント原点 """
+        """親フレーム -> ジョイント原点"""
         joint: Joint = self._robot.joint_map[joint_name]
         if joint.origin is None:
             return Frame.Identity()
@@ -160,7 +159,7 @@ class Tree:
             return Frame(p_origin, M_origin)
 
     def _joint_to_link(self, joint_name: str) -> Frame:
-        """ ジョイント原点 -> リンク原点 """
+        """ジョイント原点 -> リンク原点"""
         joint: Joint = self._robot.joint_map[joint_name]
         if joint.type == JointType.FIXED:
             return Frame.Identity()
@@ -173,4 +172,4 @@ class Tree:
             angle = self._q_map[joint.name]
             return Frame.Trans(axis * angle)
         else:
-            raise RuntimeError(f'Invalid joint type: {joint.type}')
+            raise RuntimeError(f"Invalid joint type: {joint.type}")

@@ -1,10 +1,11 @@
 from __future__ import annotations  # 自クラスを返り値としてアノテートするために必要
 from functools import singledispatchmethod
+import math
 import numpy as np
 import sympy
 from sympy import Symbol, Matrix
 from sympy.logic.boolalg import BooleanTrue
-from typing import Dict
+from typing import Dict, Tuple
 
 
 class Vector:
@@ -115,6 +116,13 @@ class Vector:
             # 解が複数ある場合は例外を出す
             raise RuntimeError("Equation has multiple solutions.")
 
+    def simplify(self, chop=False) -> Vector:
+        return Vector(
+            sympy.simplify(self.x, chop=chop),
+            sympy.simplify(self.y, chop=chop),
+            sympy.simplify(self.z, chop=chop),
+        )
+
     def __add__(self, rhs: Vector) -> Vector:
         x = self.x + rhs.x
         y = self.y + rhs.y
@@ -212,6 +220,19 @@ class Rotation:
     def inverse(self) -> Rotation:
         data: Matrix = self.data.T
         return Rotation(*data.flat())
+
+    def get_rpy(self) -> Tuple[Symbol, Symbol, Symbol]:
+        epsilon = 1e-12
+        pitch = sympy.atan2(
+            -self.data[2, 0], sympy.sqrt(self.data[0, 0] ** 2 + self.data[1, 0] ** 2)
+        )
+        if type(pitch) is float and abs(pitch) > math.pi / 2 - epsilon:
+            roll = 0.0
+            yaw = sympy.atan2(-self.data[0, 1], self.data[1, 1])
+        else:
+            roll = sympy.atan2(self.data[2, 1], self.data[2, 2])
+            yaw = sympy.atan2(self.data[1, 0], self.data[0, 1])
+        return roll, pitch, yaw
 
     @singledispatchmethod
     def __mul__(self, rhs: Rotation) -> Rotation:

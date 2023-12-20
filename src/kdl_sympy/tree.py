@@ -1,10 +1,10 @@
 import sympy
 from sympy import Symbol
 from typing import List, Tuple, Dict, Union
-from urdf_parser_py.urdf import Robot, Link, Joint
+from urdf_parser_py.urdf import *
 
 from .frames import *
-from .joint import JointType
+from .joint import *
 
 
 class Tree:
@@ -46,12 +46,12 @@ class Tree:
     def get_link(self, link_name: str) -> Link:
         return self._robot.link_map[link_name]
 
-    def get_joint(self, link_name: str) -> Joint:
+    def get_joint(self, link_name: str) -> Union[Joint, None]:
         if link_name == self._robot.get_root():
-            raise ValueError("Root link does not have a joint.")
+            return None
 
-        joint_name, _ = self._robot.parent_map[link_name]
-        return self._robot.joint_map[joint_name]
+        jnt_name, _ = self._robot.parent_map[link_name]
+        return self._robot.joint_map[jnt_name]
 
     def get_angle(self, link_name: str) -> Union[Symbol, int]:
         joint = self.get_joint(link_name)
@@ -63,6 +63,28 @@ class Tree:
 
     def get_children(self, link_name: str) -> List[Tuple[str, str]]:
         return self._robot.child_map[link_name]
+
+    def hardware_interface(self, jnt_name: str) -> Union[HardwareInterface, None]:
+        for transmission in self._robot.transmissions:
+            for joint in transmission.joints:
+                if joint.name == jnt_name:
+                    if len(joint.hardwareInterfaces) == 0:
+                        raise RuntimeError("Hardware interface is not specified.")
+                    elif len(joint.hardwareInterfaces) >= 2:
+                        raise RuntimeError(
+                            "Multiple hardware interfaces is not supported."
+                        )
+                    hi: str = joint.hardwareInterfaces[0]
+                    if hi == HardwareInterface.POSITION.value:
+                        return HardwareInterface.POSITION
+                    elif hi == HardwareInterface.VELOCITY.value:
+                        return HardwareInterface.VELOCITY
+                    elif hi == HardwareInterface.EFFORT.value:
+                        return HardwareInterface.EFFORT
+                    else:
+                        raise RuntimeError(f"Unknown hardware interface: {hi}")
+
+        return None
 
     def is_end_link(self, link_name: str) -> bool:
         assert link_name in self._robot.link_map.keys()
@@ -78,8 +100,8 @@ class Tree:
         _, parent_name = self._robot.parent_map[link_name]
         return self.is_fixed_link(parent_name)
 
-    def is_fixed_joint(self, joint_name: str) -> bool:
-        joint: Joint = self._robot.joint_map[joint_name]
+    def is_fixed_joint(self, jnt_name: str) -> bool:
+        joint: Joint = self._robot.joint_map[jnt_name]
         return joint.type == JointType.FIXED
 
     def link_exists(self, link_name: str) -> bool:
@@ -88,9 +110,9 @@ class Tree:
                 return True
         return False
 
-    def joint_exists(self, joint_name: str) -> bool:
+    def joint_exists(self, jnt_name: str) -> bool:
         for joint in self.get_joints():
-            if joint.name == joint_name:
+            if joint.name == jnt_name:
                 return True
         return False
 
@@ -122,18 +144,18 @@ class Tree:
         """Forward Kinematics."""
         return self._recursive_fk(link_name)
 
-    def local_axis(self, joint_name: str) -> Union[Vector, None]:
-        joint: Joint = self._robot.joint_map[joint_name]
+    def local_axis(self, jnt_name: str) -> Union[Vector, None]:
+        joint: Joint = self._robot.joint_map[jnt_name]
         return None if joint.axis is None else Vector(*joint.axis)
 
-    def global_axis(self, joint_name: str) -> Vector:
-        joint: Joint = self._robot.joint_map[joint_name]
+    def global_axis(self, jnt_name: str) -> Vector:
+        joint: Joint = self._robot.joint_map[jnt_name]
         if joint.axis is None:
             return None
 
         # ルートからジョイント原点までのTFを求める．
         T_W_Parent = self._recursive_fk(joint.parent)
-        T_Parent_Joint = self._parent_to_joint(joint_name)
+        T_Parent_Joint = self._parent_to_joint(jnt_name)
         T_W_Joint = T_W_Parent * T_Parent_Joint
 
         local_axis = Vector(*joint.axis)
@@ -148,9 +170,9 @@ class Tree:
         parent = self.get_parent(link_name)
         return self._recursive_fk(parent.name) * cur_frame
 
-    def _parent_to_joint(self, joint_name: str) -> Frame:
+    def _parent_to_joint(self, jnt_name: str) -> Frame:
         """親フレーム -> ジョイント原点"""
-        joint: Joint = self._robot.joint_map[joint_name]
+        joint: Joint = self._robot.joint_map[jnt_name]
         if joint.origin is None:
             return Frame.Identity()
         else:
@@ -158,9 +180,9 @@ class Tree:
             M_origin = Rotation.RPY(*joint.origin.rpy)
             return Frame(p_origin, M_origin)
 
-    def _joint_to_link(self, joint_name: str) -> Frame:
+    def _joint_to_link(self, jnt_name: str) -> Frame:
         """ジョイント原点 -> リンク原点"""
-        joint: Joint = self._robot.joint_map[joint_name]
+        joint: Joint = self._robot.joint_map[jnt_name]
         if joint.type == JointType.FIXED:
             return Frame.Identity()
         elif joint.type in {JointType.REVOLUTE, JointType.CONTINUOUS}:
